@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block title %}Stats — Poker Tracker{% endblock %}
+
+{% block content %}
+{% set total_profit = stats['total_profit'] | float %}
+{% set total_sessions = stats['total_sessions'] | int %}
+{% set wins = stats['wins'] | int %}
+{% set win_rate = (wins / total_sessions * 100) if total_sessions > 0 else 0 %}
+{% set avg_profit = (total_profit / total_sessions) if total_sessions > 0 else 0 %}
+{% set best = stats['best_session'] | float %}
+{% set worst = stats['worst_session'] | float %}
+
+<!-- Club filter -->
+<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+    <form class="d-flex align-items-center gap-2" method="get" action="/">
+        <span class="text-muted small">Filter:</span>
+        <select name="club_id" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+            <option value="">All Clubs</option>
+            {% for c in clubs %}
+                <option value="{{ c.id }}" {% if selected_club_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+        </select>
+    </form>
+    {% if selected_club_id %}
+        <a href="/" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x me-1"></i>Clear</a>
+    {% endif %}
+    {% if selected_game_id %}
+        <span class="text-muted small">|</span>
+        <a href="/?{% if selected_club_id %}club_id={{ selected_club_id }}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x me-1"></i>Clear stake</a>
+    {% endif %}
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">Total P&L</div>
+                <div class="stat-value {{ 'text-success' if total_profit >= 0 else 'text-danger' }}">
+                    {{ total_profit | pnl }}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">Sessions</div>
+                <div class="stat-value">{{ total_sessions }}</div>
+                <div class="stat-sub">{{ wins }}W / {{ total_sessions - wins }}L</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">Win Rate</div>
+                <div class="stat-value">{{ "%.0f"|format(win_rate) }}%</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">Avg / Session</div>
+                <div class="stat-value {{ 'text-success' if avg_profit >= 0 else 'text-danger' }}">
+                    {{ avg_profit | pnl }}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">Best Session</div>
+                <div class="stat-value text-success">{{ best | pnl }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">Worst Session</div>
+                <div class="stat-value text-danger">{{ worst | pnl }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span id="chartTitle">Cumulative P&L</span>
+        {% if chart_labels != '[]' %}
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-secondary active" id="btnCumulative" onclick="setChartMode('cumulative')">Cumulative</button>
+            <button type="button" class="btn btn-outline-secondary" id="btnDaily" onclick="setChartMode('daily')">Daily</button>
+        </div>
+        {% endif %}
+    </div>
+    <div class="card-body py-3">
+        {% if chart_labels != '[]' %}
+            <canvas id="pnlChart" height="80"></canvas>
+        {% else %}
+            <div class="text-center text-muted py-4">No sessions yet.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- P&L by Game (collapsible) -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center"
+         style="cursor:pointer;user-select:none" data-bs-toggle="collapse" data-bs-target="#pnlByGame" aria-expanded="false">
+        <span>P&L by Game</span>
+        <i class="bi bi-chevron-down small text-muted" id="pnlByGameChevron"></i>
+    </div>
+    <div class="collapse" id="pnlByGame">
+        {% if stake_stats %}
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Stake</th>
+                        <th class="text-end" style="white-space:nowrap">Hands</th>
+                        <th class="text-end">P&L</th>
+                        <th class="text-end" style="white-space:nowrap">BB/100</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in stake_stats %}
+                    {% set bb100 = r['bb100'] %}
+                    {% set is_sel = selected_game_id == r['game_id'] and selected_blind_level_id == r['blind_level_id'] %}
+                    {% set link %}/?game_id={{ r['game_id'] }}&blind_level_id={{ r['blind_level_id'] }}{% if selected_club_id %}&club_id={{ selected_club_id }}{% endif %}{% endset %}
+                    <tr onclick="location.href='{{ link.strip() }}'" style="cursor:pointer" class="{{ 'table-active' if is_sel else '' }}">
+                        <td class="text-muted small">{{ r['name'] }}</td>
+                        <td class="text-end text-muted small" style="white-space:nowrap">{{ "{:,}".format(r['hands'] | int).replace(",", " ") if r['hands'] else '—' }}</td>
+                        <td class="text-end fw-semibold small {{ 'text-success' if r['profit'] >= 0 else 'text-danger' }}">{{ r['profit'] | pnl }}</td>
+                        <td class="text-end small {{ 'text-success' if bb100 and bb100 >= 0 else 'text-danger' if bb100 and bb100 < 0 else 'text-muted' }}" style="white-space:nowrap">
+                            {% if bb100 is not none %}{{ "%.2f"|format(bb100) }}{% else %}—{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body">
+            <div class="text-center text-muted py-4">No data.</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Club breakdown -->
+{% if club_breakdown %}
+{% set t_sessions = club_breakdown | sum(attribute='session_count') %}
+{% set t_hands = club_breakdown | sum(attribute='total_hands') %}
+{% set t_session_profit = club_breakdown | sum(attribute='session_profit') %}
+{% set t_rakeback = club_breakdown | sum(attribute='rakeback') %}
+{% set t_net_cash = club_breakdown | sum(attribute='net_cash') %}
+{% set t_swaps_in = club_breakdown | sum(attribute='swaps_in') %}
+{% set t_swaps_out = club_breakdown | sum(attribute='swaps_out') %}
+{% set t_balance = t_session_profit + t_net_cash + t_rakeback + t_swaps_in - t_swaps_out %}
+<div class="card mb-4">
+    <div class="card-header">Club Breakdown</div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Club</th>
+                    <th class="text-end">Sessions</th>
+                    <th class="text-end">Hands</th>
+                    <th class="text-end">P&L</th>
+                    <th class="text-end" style="white-space:nowrap">BB/100</th>
+                    <th class="text-end">Rakeback</th>
+                    <th class="text-end">Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in club_breakdown %}
+                {% set balance = c['session_profit'] + c['net_cash'] + c['rakeback'] + c['swaps_in'] - c['swaps_out'] %}
+                {% set bb100 = c['bb100'] %}
+                <tr>
+                    <td><a href="/?club_id={{ c['id'] }}" class="text-decoration-none fw-semibold">{{ c['name'] }}</a></td>
+                    <td class="text-end text-muted">{{ c['session_count'] }}</td>
+                    <td class="text-end text-muted" style="white-space:nowrap">{{ "{:,}".format(c['total_hands'] | int).replace(",", " ") if c['total_hands'] else '—' }}</td>
+                    <td class="text-end {{ 'text-success' if c['session_profit'] >= 0 else 'text-danger' }}">{{ c['session_profit'] | pnl }}</td>
+                    <td class="text-end small {{ 'text-success' if bb100 and bb100 >= 0 else 'text-danger' if bb100 and bb100 < 0 else 'text-muted' }}" style="white-space:nowrap">
+                        {% if bb100 is not none %}{{ "%.2f"|format(bb100) }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end {{ 'text-info' if c['rakeback'] > 0 else 'text-muted' }}">{{ c['rakeback'] | nok }}</td>
+                    <td class="text-end fw-bold {{ 'text-success' if balance >= 0 else 'text-danger' }}">{{ balance | pnl }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="table-group-divider">
+                <tr class="fw-bold">
+                    <td>Total</td>
+                    <td class="text-end text-muted">{{ t_sessions }}</td>
+                    <td class="text-end text-muted" style="white-space:nowrap">{{ "{:,}".format(t_hands | int).replace(",", " ") if t_hands else '—' }}</td>
+                    <td class="text-end {{ 'text-success' if t_session_profit >= 0 else 'text-danger' }}">{{ t_session_profit | pnl }}</td>
+                    <td class="text-end text-muted">—</td>
+                    <td class="text-end {{ 'text-info' if t_rakeback > 0 else 'text-muted' }}">{{ t_rakeback | nok }}</td>
+                    <td class="text-end {{ 'text-success' if t_balance >= 0 else 'text-danger' }}">{{ t_balance | pnl }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Daily P&L -->
+<div class="card">
+    <div class="card-header">P&L by Day</div>
+    {% if daily_pnl %}
+    <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th class="text-end">Sessions</th>
+                    <th class="text-end">Hands</th>
+                    <th class="text-end">Profit</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in daily_pnl %}
+                {% set date_id = 'day-' ~ d['date'] | replace('-', '') %}
+                {% set day_sessions = sessions_by_date.get(d['date'], []) %}
+                <tr class="day-summary-row" data-target="{{ date_id }}" style="cursor:pointer">
+                    <td>
+                        <i class="bi bi-chevron-right day-chevron small text-muted me-1" style="transition:transform 0.2s;display:inline-block"></i>
+                        <span class="text-muted">{{ d['date'] }}</span>
+                    </td>
+                    <td class="text-end text-muted">{{ d['session_count'] }}</td>
+                    <td class="text-end text-muted">{{ d['hands'] or '—' }}</td>
+                    <td class="text-end fw-semibold {{ 'text-success' if d['profit'] >= 0 else 'text-danger' }}">{{ d['profit'] | pnl }}</td>
+                </tr>
+                {% for s in day_sessions %}
+                <tr class="day-detail-row" data-day="{{ date_id }}" style="display:none;background:rgba(255,255,255,0.025)">
+                    <td class="ps-4 small text-muted">{{ s['club_name'] }} · {{ s['game_name'] }} · {{ s['blind_name'] }}</td>
+                    <td class="text-end small text-muted">—</td>
+                    <td class="text-end small text-muted">{{ s['hands'] or '—' }}</td>
+                    <td class="text-end small {{ 'text-success' if s['profit'] >= 0 else 'text-danger' }}">{{ s['profit'] | pnl }}</td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body text-center text-muted py-5">
+        No sessions yet.
+        {% if clubs %}<a href="/sessions">Add your first session.</a>{% else %}<a href="/clubs">Start by adding a club.</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const cumulativeLabels = {{ chart_labels | safe }};
+const cumulativeValues = {{ chart_values | safe }};
+const dailyLabels = {{ daily_labels | safe }};
+const dailyValues = {{ daily_values | safe }};
+const gridColor = '#21262d';
+const tickColor  = '#7d8590';
+
+let pnlChart = null;
+
+function barColors(values) {
+    return values.map(v => v >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)');
+}
+
+function setChartMode(mode) {
+    if (!pnlChart) return;
+    const isCumulative = mode === 'cumulative';
+    const labels = isCumulative ? cumulativeLabels : dailyLabels;
+    const values = isCumulative ? cumulativeValues : dailyValues;
+    const lastVal = isCumulative ? values[values.length - 1] : 0;
+    const pos = '#22c55e', neg = '#ef4444';
+
+    document.getElementById('chartTitle').textContent = isCumulative ? 'Cumulative P&L' : 'Daily P&L';
+    document.getElementById('btnCumulative').className = 'btn btn-' + (isCumulative ? '' : 'outline-') + 'secondary' + (isCumulative ? ' active' : '');
+    document.getElementById('btnDaily').className = 'btn btn-' + (!isCumulative ? '' : 'outline-') + 'secondary' + (!isCumulative ? ' active' : '');
+
+    pnlChart.config.type = isCumulative ? 'line' : 'bar';
+    pnlChart.data.labels = labels;
+    pnlChart.data.datasets[0].data = values;
+
+    if (isCumulative) {
+        Object.assign(pnlChart.data.datasets[0], {
+            borderColor: lastVal >= 0 ? pos : neg,
+            backgroundColor: lastVal >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+            borderWidth: 2,
+            fill: true,
+            pointRadius: labels.length > 40 ? 0 : 3,
+            pointBackgroundColor: lastVal >= 0 ? pos : neg,
+            tension: 0.15,
+        });
+    } else {
+        Object.assign(pnlChart.data.datasets[0], {
+            borderColor: barColors(values),
+            backgroundColor: barColors(values),
+            borderWidth: 0,
+            fill: false,
+            pointRadius: 0,
+            tension: 0,
+        });
+    }
+
+    pnlChart.update();
+}
+
+if (cumulativeLabels.length) {
+    const lastVal = cumulativeValues[cumulativeValues.length - 1];
+    pnlChart = new Chart(document.getElementById('pnlChart'), {
+        type: 'line',
+        data: {
+            labels: cumulativeLabels,
+            datasets: [{
+                data: cumulativeValues,
+                borderColor: lastVal >= 0 ? '#22c55e' : '#ef4444',
+                backgroundColor: lastVal >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                borderWidth: 2,
+                fill: true,
+                pointRadius: cumulativeLabels.length > 40 ? 0 : 3,
+                pointBackgroundColor: lastVal >= 0 ? '#22c55e' : '#ef4444',
+                tension: 0.15,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false }, tooltip: {
+                callbacks: { label: ctx => `${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toLocaleString('nb-NO')} kr` }
+            }},
+            scales: {
+                y: { grid: { color: gridColor }, ticks: { color: tickColor, callback: v => `${v >= 0 ? '+' : ''}${v.toLocaleString('nb-NO')}` } },
+                x: { grid: { color: gridColor }, ticks: { color: tickColor, maxTicksLimit: 8 } }
+            }
+        }
+    });
+}
+
+const pnlByGame = document.getElementById('pnlByGame');
+const chevron = document.getElementById('pnlByGameChevron');
+if (pnlByGame) {
+    pnlByGame.addEventListener('show.bs.collapse', () => chevron.style.transform = 'rotate(180deg)');
+    pnlByGame.addEventListener('hide.bs.collapse', () => chevron.style.transform = '');
+}
+chevron && (chevron.style.transition = 'transform 0.2s');
+
+document.querySelectorAll('.day-summary-row').forEach(row => {
+    row.addEventListener('click', () => {
+        const icon = row.querySelector('.day-chevron');
+        const details = document.querySelectorAll(`.day-detail-row[data-day="${row.dataset.target}"]`);
+        if (!details.length) return;
+        const open = details[0].style.display !== 'none';
+        details.forEach(r => r.style.display = open ? 'none' : 'table-row');
+        icon.style.transform = open ? '' : 'rotate(90deg)';
+    });
+});
+
+</script>
+{% endblock %}

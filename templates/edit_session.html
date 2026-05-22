@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Edit Session — Poker Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-4">
+    <a href="/sessions" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+    <h6 class="mb-0 fw-bold">Edit Session</h6>
+</div>
+
+<div class="card" style="max-width:480px">
+    <div class="card-body">
+        <form method="post">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label">Date</label>
+                    <input type="date" name="date" class="form-control" value="{{ sess['date'] }}" required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Club</label>
+                    <select name="club_id" class="form-select" required>
+                        {% for c in clubs %}
+                            <option value="{{ c.id }}" {% if sess['club_id'] == c.id %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6">
+                    <label class="form-label">Game</label>
+                    <select name="game_id" class="form-select" required>
+                        {% for g in games %}
+                            <option value="{{ g.id }}" {% if sess['game_id'] == g.id %}selected{% endif %}>{{ g.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6">
+                    <label class="form-label">Blinds</label>
+                    <select name="blind_level_id" class="form-select" required>
+                        {% for bl in blind_levels %}
+                            <option value="{{ bl.id }}" {% if sess['blind_level_id'] == bl.id %}selected{% endif %}>{{ bl.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6">
+                    <label class="form-label">Hands <span class="text-muted">(optional)</span></label>
+                    <input type="number" name="hands" class="form-control"
+                           value="{{ sess['hands'] or '' }}" min="0" step="1" placeholder="—">
+                </div>
+                <div class="col-6">
+                    <label class="form-label">Profit (kr)</label>
+                    <input type="number" name="profit" id="profitInput" class="form-control"
+                           value="{{ sess['profit'] | int }}" step="any" required>
+                </div>
+                <div class="col-12 d-flex gap-2 justify-content-end pt-1">
+                    <a href="/sessions" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-success">Save Changes</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const pi = document.getElementById('profitInput');
+function colourProfit() {
+    const v = parseFloat(pi.value);
+    pi.style.color = isNaN(v) ? '' : v >= 0 ? '#22c55e' : '#ef4444';
+}
+pi.addEventListener('input', colourProfit);
+colourProfit();
+</script>
+{% endblock %}

@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}All Time — Poker Tracker{% endblock %}
+
+{% block content %}
+{% set nok_total = (sessions_2026['total_profit'] + hist_nok['total_profit']) | float %}
+{% set usd_total = hist_usd['total_profit'] | float %}
+{% set usd_sess  = hist_usd['total_sessions'] | int %}
+
+{# ── Game filter ── #}
+{% if games %}
+<div class="d-flex gap-2 mb-4 flex-wrap">
+    <a href="/all-time" class="btn btn-sm {{ 'btn-secondary' if not selected_game_id else 'btn-outline-secondary' }}">All</a>
+    {% for g in games %}
+    <a href="/all-time?game_id={{ g.id }}" class="btn btn-sm {{ 'btn-success' if selected_game_id == g.id else 'btn-outline-secondary' }}">{{ g.name }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+
+{# ── NOK ── #}
+<div class="d-flex align-items-center gap-2 mb-3">
+    <span class="fw-bold" style="font-size:0.78rem;letter-spacing:0.5px;text-transform:uppercase;color:#7d8590">NOK</span>
+    <div style="flex:1;height:1px;background:#30363d"></div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">Total P&L</div>
+                <div class="stat-value {{ 'text-success' if nok_total >= 0 else 'text-danger' }}">{{ nok_total | pnl }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">Hands</div>
+                <div class="stat-value">{{ "{:,}".format(nok_agg['total_hands'] | int).replace(",", " ") if nok_agg['total_hands'] else '—' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">BB / 100</div>
+                <div class="stat-value {{ 'text-success' if nok_agg['bb100'] and nok_agg['bb100'] >= 0 else 'text-danger' if nok_agg['bb100'] and nok_agg['bb100'] < 0 else '' }}">
+                    {% if nok_agg['bb100'] is not none %}{{ "%.2f"|format(nok_agg['bb100']) }}{% else %}—{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if nok_by_game %}
+<div class="card mb-4">
+    <div class="card-header">NOK Stakes Breakdown</div>
+    <table class="table table-hover mb-0" id="nokTable">
+        <thead>
+            <tr>
+                <th data-sort-col="0" onclick="sortTable('nokTable',0)" style="cursor:pointer">Game <span class="sort-icon">↕</span></th>
+                <th class="text-end" data-sort-col="1" onclick="sortTable('nokTable',1)" style="cursor:pointer;white-space:nowrap">Hands <span class="sort-icon">↕</span></th>
+                <th class="text-end" data-sort-col="2" onclick="sortTable('nokTable',2)" style="cursor:pointer;white-space:nowrap">P&L <span class="sort-icon">↕</span></th>
+                <th class="text-end" data-sort-col="3" onclick="sortTable('nokTable',3)" style="cursor:pointer;white-space:nowrap">BB / 100 <span class="sort-icon">↕</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in nok_by_game %}
+            {% set bb100 = (r['profit'] / r['big_blind'] / r['hands'] * 100) if r['hands'] else none %}
+            <tr>
+                <td class="text-muted">{{ r['name'] }}</td>
+                <td class="text-end text-muted" style="white-space:nowrap" data-val="{{ r['hands'] or 0 }}">{{ "{:,}".format(r['hands'] | int).replace(",", " ") if r['hands'] else '—' }}</td>
+                <td class="text-end fw-semibold {{ 'text-success' if r['profit'] >= 0 else 'text-danger' }}" style="white-space:nowrap" data-val="{{ r['profit'] }}">{{ r['profit'] | pnl }}</td>
+                <td class="text-end {{ 'text-success' if bb100 and bb100 >= 0 else 'text-danger' if bb100 and bb100 < 0 else 'text-muted' }}" style="white-space:nowrap" data-val="{{ '%.4f'|format(bb100) if bb100 is not none else -9999 }}">
+                    {% if bb100 is not none %}{{ "%.2f"|format(bb100) }}{% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{# ── USD (only if data exists) ── #}
+{% if usd_sess > 0 %}
+<div class="d-flex align-items-center gap-2 mb-3 mt-2">
+    <span class="fw-bold" style="font-size:0.78rem;letter-spacing:0.5px;text-transform:uppercase;color:#7d8590">USD</span>
+    <div style="flex:1;height:1px;background:#30363d"></div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">Total P&L</div>
+                <div class="stat-value {{ 'text-success' if usd_total >= 0 else 'text-danger' }}">
+                    {% if usd_total > 0 %}+{% elif usd_total < 0 %}-{% endif %}${{ "{:,.0f}".format(usd_total | abs) }}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">Hands</div>
+                <div class="stat-value">{{ "{:,}".format(usd_agg['total_hands'] | int).replace(",", " ") if usd_agg['total_hands'] else '—' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">BB / 100</div>
+                <div class="stat-value {{ 'text-success' if usd_agg['bb100'] and usd_agg['bb100'] >= 0 else 'text-danger' if usd_agg['bb100'] and usd_agg['bb100'] < 0 else '' }}">
+                    {% if usd_agg['bb100'] is not none %}{{ "%.2f"|format(usd_agg['bb100']) }}{% else %}—{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if usd_by_game %}
+<div class="card mb-4">
+    <div class="card-header">USD Stakes Breakdown</div>
+    <table class="table table-hover mb-0" id="usdTable">
+        <thead>
+            <tr>
+                <th data-sort-col="0" onclick="sortTable('usdTable',0)" style="cursor:pointer">Game <span class="sort-icon">↕</span></th>
+                <th class="text-end" data-sort-col="1" onclick="sortTable('usdTable',1)" style="cursor:pointer;white-space:nowrap">Hands <span class="sort-icon">↕</span></th>
+                <th class="text-end" data-sort-col="2" onclick="sortTable('usdTable',2)" style="cursor:pointer;white-space:nowrap">P&L <span class="sort-icon">↕</span></th>
+                <th class="text-end" data-sort-col="3" onclick="sortTable('usdTable',3)" style="cursor:pointer;white-space:nowrap">BB / 100 <span class="sort-icon">↕</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in usd_by_game %}
+            {% set bb100 = (r['profit'] / r['big_blind'] / r['hands'] * 100) if r['hands'] else none %}
+            <tr>
+                <td class="text-muted">{{ r['name'] }}</td>
+                <td class="text-end text-muted" style="white-space:nowrap" data-val="{{ r['hands'] or 0 }}">{{ "{:,}".format(r['hands'] | int).replace(",", " ") if r['hands'] else '—' }}</td>
+                <td class="text-end fw-semibold {{ 'text-success' if r['profit'] >= 0 else 'text-danger' }}" style="white-space:nowrap" data-val="{{ r['profit'] }}">
+                    {% if r['profit'] > 0 %}+{% elif r['profit'] < 0 %}-{% endif %}${{ "{:,.0f}".format(r['profit'] | abs) }}
+                </td>
+                <td class="text-end {{ 'text-success' if bb100 and bb100 >= 0 else 'text-danger' if bb100 and bb100 < 0 else 'text-muted' }}" style="white-space:nowrap" data-val="{{ '%.4f'|format(bb100) if bb100 is not none else -9999 }}">
+                    {% if bb100 is not none %}{{ "%.2f"|format(bb100) }}{% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const sortState = {};
+
+function sortTable(tableId, col) {
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    const rows  = Array.from(tbody.querySelectorAll('tr'));
+    const asc   = sortState[tableId + col] !== 'asc';
+    sortState[tableId + col] = asc ? 'asc' : 'desc';
+
+    const isText = rows.length > 0 && rows[0].cells[col].dataset.val === undefined;
+
+    rows.sort((a, b) => {
+        if (isText) {
+            const av = a.cells[col].textContent.trim();
+            const bv = b.cells[col].textContent.trim();
+            return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+        }
+        const av = parseFloat(a.cells[col].dataset.val ?? a.cells[col].textContent) || 0;
+        const bv = parseFloat(b.cells[col].dataset.val ?? b.cells[col].textContent) || 0;
+        return asc ? av - bv : bv - av;
+    });
+    rows.forEach(r => tbody.appendChild(r));
+
+    document.querySelectorAll(`#${tableId} th[data-sort-col] .sort-icon`).forEach(el => {
+        const c = parseInt(el.closest('th').dataset.sortCol);
+        el.textContent = c === col ? (asc ? '↑' : '↓') : '↕';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    ['nokTable', 'usdTable'].forEach(id => {
+        if (document.getElementById(id)) {
+            sortState[id + '2'] = 'asc'; // pre-set so first call sorts descending
+            sortTable(id, 2);
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Transactions — Poker Tracker{% endblock %}
+
+{% block content %}
+{% if not clubs %}
+<div class="alert alert-warning">No clubs yet — <a href="/clubs">add a club</a> first.</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Add Transaction</div>
+            <div class="card-body">
+                <form method="post" id="txnForm">
+                    <div class="mb-3">
+                        <label class="form-label">Type</label>
+                        <div class="d-flex gap-3 flex-wrap">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="type" value="deposit" id="typeDeposit" checked>
+                                <label class="form-check-label" for="typeDeposit" style="color:#22c55e">Deposit</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="type" value="withdrawal" id="typeWithdrawal">
+                                <label class="form-check-label" for="typeWithdrawal" style="color:#eab308">Withdrawal</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="type" value="rakeback" id="typeRakeback">
+                                <label class="form-check-label" for="typeRakeback" style="color:#38bdf8">Rakeback</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="type" value="swap" id="typeSwap">
+                                <label class="form-check-label" for="typeSwap" style="color:#a78bfa">Swap</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="type" value="misc" id="typeMisc">
+                                <label class="form-check-label" for="typeMisc" style="color:#7d8590">Misc</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" id="fromClubLabel">Club</label>
+                        <select name="club_id" class="form-select" required {% if not clubs %}disabled{% endif %}>
+                            {% for c in clubs %}
+                                <option value="{{ c.id }}" {% if selected_club_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3" id="toClubRow" style="display:none">
+                        <label class="form-label">To Club</label>
+                        <select name="to_club_id" class="form-select" {% if not clubs %}disabled{% endif %}>
+                            {% for c in clubs %}
+                                <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Amount (kr)</label>
+                        <input type="number" name="amount" id="amountInput" class="form-control" min="0" step="1" required placeholder="0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date</label>
+                        <input type="date" name="date" class="form-control" value="{{ today }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes <span class="text-muted">(optional)</span></label>
+                        <input type="text" name="notes" class="form-control" placeholder="Optional">
+                    </div>
+                    <button type="submit" class="btn btn-success w-100" {% if not clubs %}disabled{% endif %}>Add</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="d-flex align-items-center gap-3 mb-3">
+            <form class="d-flex align-items-center gap-2" method="get">
+                <span class="small text-muted">Club:</span>
+                <select name="club_id" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                    <option value="">All</option>
+                    {% for c in clubs %}
+                        <option value="{{ c.id }}" {% if selected_club_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% if selected_club_id %}<a href="/transactions" class="btn btn-sm btn-outline-secondary">Clear</a>{% endif %}
+        </div>
+
+        {% if transactions %}
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Club</th>
+                            <th>Type</th>
+                            <th class="text-end">Amount</th>
+                            <th>Notes</th>
+                            <th class="text-end"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in transactions %}
+                        <tr>
+                            <td class="text-muted small" style="white-space:nowrap">{{ t['date'] }}</td>
+                            <td>
+                                {% if t['type'] == 'swap' %}
+                                    <span class="text-muted">{{ t['club_name'] }}</span>
+                                    <i class="bi bi-arrow-right mx-1" style="color:#a78bfa;font-size:0.8rem"></i>
+                                    <span class="text-muted">{{ t['to_club_name'] or '?' }}</span>
+                                {% else %}
+                                    {{ t['club_name'] }}
+                                {% endif %}
+                            </td>
+                            <td style="white-space:nowrap">
+                                {% if t['type'] == 'deposit' %}
+                                    <span class="badge" style="background:rgba(34,197,94,0.15);color:#22c55e">Deposit</span>
+                                {% elif t['type'] == 'withdrawal' %}
+                                    <span class="badge" style="background:rgba(234,179,8,0.15);color:#eab308">Withdrawal</span>
+                                {% elif t['type'] == 'rakeback' %}
+                                    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">Rakeback</span>
+                                {% elif t['type'] == 'swap' %}
+                                    <span class="badge" style="background:rgba(167,139,250,0.15);color:#a78bfa">Swap</span>
+                                {% else %}
+                                    <span class="badge" style="background:rgba(125,133,144,0.15);color:#7d8590">Misc</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end" style="white-space:nowrap">
+                                {% if t['type'] == 'deposit' %}
+                                    <span class="text-success">{{ t['amount'] | nok }}</span>
+                                {% elif t['type'] == 'withdrawal' %}
+                                    <span class="text-warning">{{ t['amount'] | nok }}</span>
+                                {% elif t['type'] == 'rakeback' %}
+                                    <span class="text-info">{{ t['amount'] | nok }}</span>
+                                {% elif t['type'] == 'swap' %}
+                                    <span class="text-muted">{{ t['amount'] | nok }}</span>
+                                {% else %}
+                                    <span class="text-muted">{{ t['amount'] | nok }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">{{ t['notes'] or '—' }}</td>
+                            <td class="text-end">
+                                <form method="post" action="/transactions/{{ t['id'] }}/delete" class="d-inline"
+                                      onsubmit="return confirm('Delete this entry?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">No transactions found.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const radios = document.querySelectorAll('input[name="type"]');
+const toClubRow = document.getElementById('toClubRow');
+const fromClubLabel = document.getElementById('fromClubLabel');
+
+function updateForm() {
+    const val = document.querySelector('input[name="type"]:checked')?.value;
+    const isSwap = val === 'swap';
+    const isMisc = val === 'misc';
+    toClubRow.style.display = isSwap ? '' : 'none';
+    fromClubLabel.textContent = isSwap ? 'From Club' : 'Club';
+    const amountInput = document.getElementById('amountInput');
+    if (isMisc) {
+        amountInput.removeAttribute('min');
+    } else {
+        amountInput.setAttribute('min', '0');
+    }
+}
+
+radios.forEach(r => r.addEventListener('change', updateForm));
+updateForm();
+</script>
+{% endblock %}

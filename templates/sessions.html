@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Sessions — Poker Tracker{% endblock %}
+
+{% block content %}
+
+{% if not clubs %}
+<div class="alert alert-warning">No clubs yet — <a href="/clubs">add a club</a> first.</div>
+{% elif not games %}
+<div class="alert alert-warning">No game types yet — <a href="/stakes">add a game type</a> first.</div>
+{% elif not blind_levels %}
+<div class="alert alert-warning">No blind levels yet — <a href="/stakes">add a blind level</a> first.</div>
+{% endif %}
+
+<!-- Add sessions form -->
+{% if clubs and games and blind_levels %}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Add Sessions</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRow()">
+            <i class="bi bi-plus-lg me-1"></i>Add Row
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <form method="post" action="/sessions/add" id="addForm">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0" id="addTable">
+                    <thead>
+                        <tr>
+                            <th style="min-width:130px">Date</th>
+                            <th style="min-width:130px">Club</th>
+                            <th style="min-width:130px">Game</th>
+                            <th style="min-width:110px">Blinds</th>
+                            <th style="min-width:80px">Hands</th>
+                            <th style="min-width:110px">Profit (kr)</th>
+                            <th style="width:36px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessionRows">
+                        <tr>
+                            <td><input type="date" name="date[]" class="form-control form-control-sm" value="{{ today }}" required></td>
+                            <td>
+                                <select name="club_id[]" class="form-select form-select-sm" required>
+                                    {% for c in clubs %}<option value="{{ c.id }}" {% if selected_club_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <select name="game_id[]" class="form-select form-select-sm" required>
+                                    {% for g in games %}<option value="{{ g.id }}" {% if selected_game_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <select name="blind_level_id[]" class="form-select form-select-sm" required>
+                                    {% for bl in blind_levels %}<option value="{{ bl.id }}">{{ bl.name }}</option>{% endfor %}
+                                </select>
+                            </td>
+                            <td><input type="number" name="hands[]" class="form-control form-control-sm" min="0" step="1" placeholder="—"></td>
+                            <td><input type="number" name="profit[]" class="form-control form-control-sm profit-input" step="any" placeholder="0" required></td>
+                            <td><button type="button" class="btn btn-sm btn-link text-danger p-0 px-1" onclick="removeRow(this)" tabindex="-1"><i class="bi bi-x-lg"></i></button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-3 pb-3 pt-2 d-flex justify-content-end">
+                <button type="submit" class="btn btn-success btn-sm px-4">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Row template for JS cloning -->
+<template id="rowTemplate">
+    <tr>
+        <td><input type="date" name="date[]" class="form-control form-control-sm" required></td>
+        <td>
+            <select name="club_id[]" class="form-select form-select-sm" required>
+                {% for c in clubs %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+        </td>
+        <td>
+            <select name="game_id[]" class="form-select form-select-sm" required>
+                {% for g in games %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+            </select>
+        </td>
+        <td>
+            <select name="blind_level_id[]" class="form-select form-select-sm" required>
+                {% for bl in blind_levels %}<option value="{{ bl.id }}">{{ bl.name }}</option>{% endfor %}
+            </select>
+        </td>
+        <td><input type="number" name="hands[]" class="form-control form-control-sm" min="0" step="1" placeholder="—"></td>
+        <td><input type="number" name="profit[]" class="form-control form-control-sm profit-input" step="any" placeholder="0" required></td>
+        <td><button type="button" class="btn btn-sm btn-link text-danger p-0 px-1" onclick="removeRow(this)" tabindex="-1"><i class="bi bi-x-lg"></i></button></td>
+    </tr>
+</template>
+{% endif %}
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form class="d-flex gap-3 align-items-center flex-wrap" method="get">
+            <div class="d-flex align-items-center gap-2">
+                <label class="small text-muted mb-0">Club</label>
+                <select name="club_id" class="form-select form-select-sm w-auto">
+                    <option value="">All</option>
+                    {% for c in clubs %}<option value="{{ c.id }}" {% if selected_club_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <label class="small text-muted mb-0">Game</label>
+                <select name="game_id" class="form-select form-select-sm w-auto">
+                    <option value="">All</option>
+                    {% for g in games %}<option value="{{ g.id }}" {% if selected_game_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button>
+            <a href="/sessions" class="btn btn-sm btn-link text-muted p-0">Clear</a>
+        </form>
+    </div>
+</div>
+
+<!-- Sessions list -->
+{% if sessions %}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Club</th>
+                    <th>Game</th>
+                    <th class="text-end">Hands</th>
+                    <th class="text-end">Profit</th>
+                    <th class="text-end"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sessions %}
+                <tr>
+                    <td class="text-muted">{{ s['date'] }}</td>
+                    <td>{{ s['club_name'] }}</td>
+                    <td><span class="badge bg-secondary">{{ s['stake_name'] }}</span></td>
+                    <td class="text-end text-muted">{{ s['hands'] or '—' }}</td>
+                    <td class="text-end fw-semibold {{ 'text-success' if s['profit'] >= 0 else 'text-danger' }}">
+                        {{ s['profit'] | pnl }}
+                    </td>
+                    <td class="text-end" style="white-space:nowrap">
+                        <a href="/sessions/{{ s['id'] }}/edit" class="btn btn-sm btn-outline-secondary me-1">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form method="post" action="/sessions/{{ s['id'] }}/delete" class="d-inline"
+                              onsubmit="return confirm('Delete this session?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="text-center text-muted py-5">No sessions yet.</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addRow() {
+    const tmpl = document.getElementById('rowTemplate').content.cloneNode(true);
+    const dateInput = tmpl.querySelector('input[type="date"]');
+    dateInput.value = '{{ today }}';
+    // Copy current selections from first row
+    const firstRow = document.querySelector('#sessionRows tr');
+    if (firstRow) {
+        ['club_id[]', 'game_id[]', 'blind_level_id[]'].forEach(name => {
+            const src = firstRow.querySelector(`select[name="${name}"]`);
+            const dst = tmpl.querySelector(`select[name="${name}"]`);
+            if (src && dst) dst.value = src.value;
+        });
+    }
+    document.getElementById('sessionRows').appendChild(tmpl);
+    // Focus profit field of new row
+    const rows = document.querySelectorAll('#sessionRows tr');
+    rows[rows.length - 1].querySelector('.profit-input').focus();
+}
+
+function removeRow(btn) {
+    const rows = document.querySelectorAll('#sessionRows tr');
+    if (rows.length > 1) btn.closest('tr').remove();
+}
+
+// Colour profit inputs live
+document.getElementById('addTable')?.addEventListener('input', e => {
+    if (e.target.classList.contains('profit-input')) {
+        const v = parseFloat(e.target.value);
+        e.target.style.color = isNaN(v) ? '' : v >= 0 ? '#22c55e' : '#ef4444';
+    }
+});
+
+// Remember date + club from last submitted session (cleared after one restore so refresh resets)
+const _form = document.getElementById('addForm');
+if (_form) {
+    const _saved = sessionStorage.getItem('lastSessionDefaults');
+    if (_saved) {
+        const { date, club_id } = JSON.parse(_saved);
+        const dateEl = _form.querySelector('input[name="date[]"]');
+        const clubEl = _form.querySelector('select[name="club_id[]"]');
+        if (dateEl && date) dateEl.value = date;
+        if (clubEl && club_id) clubEl.value = club_id;
+        sessionStorage.removeItem('lastSessionDefaults');
+    }
+    _form.addEventListener('submit', () => {
+        const dateEl = _form.querySelector('input[name="date[]"]');
+        const clubEl = _form.querySelector('select[name="club_id[]"]');
+        sessionStorage.setItem('lastSessionDefaults', JSON.stringify({
+            date: dateEl?.value || '',
+            club_id: clubEl?.value || '',
+        }));
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Swaps — Poker Tracker{% endblock %}
+
+{% block content %}
+{% if not clubs %}
+<div class="alert alert-warning">No clubs yet — <a href="/clubs">add clubs</a> first (need at least 2 for a swap).</div>
+{% elif clubs | length < 2 %}
+<div class="alert alert-warning">You need at least 2 clubs to record a swap. <a href="/clubs">Add another club.</a></div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Add Swap</div>
+            <div class="card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label">From Club</label>
+                        <select name="from_club_id" class="form-select" required {% if clubs | length < 2 %}disabled{% endif %}>
+                            {% for c in clubs %}
+                                <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">To Club</label>
+                        <select name="to_club_id" class="form-select" required {% if clubs | length < 2 %}disabled{% endif %}>
+                            {% for c in clubs %}
+                                <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Amount (kr)</label>
+                        <input type="number" name="amount" class="form-control" min="1" step="1" required placeholder="0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date</label>
+                        <input type="date" name="date" class="form-control" value="{{ today }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes <span class="text-muted">(optional)</span></label>
+                        <input type="text" name="notes" class="form-control" placeholder="Optional">
+                    </div>
+                    <button type="submit" class="btn btn-success w-100" {% if clubs | length < 2 %}disabled{% endif %}>Record Swap</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        {% if swaps %}
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>From</th>
+                            <th></th>
+                            <th>To</th>
+                            <th class="text-end">Amount</th>
+                            <th>Notes</th>
+                            <th class="text-end"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sw in swaps %}
+                        <tr>
+                            <td class="text-muted">{{ sw['date'] }}</td>
+                            <td>{{ sw['from_name'] }}</td>
+                            <td class="text-muted px-0"><i class="bi bi-arrow-right"></i></td>
+                            <td>{{ sw['to_name'] }}</td>
+                            <td class="text-end">{{ sw['amount'] | nok }}</td>
+                            <td class="text-muted small">{{ sw['notes'] or '—' }}</td>
+                            <td class="text-end">
+                                <form method="post" action="/swaps/{{ sw['id'] }}/delete" class="d-inline"
+                                      onsubmit="return confirm('Delete this swap?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">No swaps recorded yet.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

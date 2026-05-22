@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Clubs — Poker Tracker{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Add Club</div>
+            <div class="card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" name="name" class="form-control" placeholder="e.g. Oslo Poker Club" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes <span class="text-muted">(optional)</span></label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Optional"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">Add Club</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        {% if clubs %}
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th class="text-end">Sessions</th>
+                            <th class="text-end">Total P&L</th>
+                            <th>Notes</th>
+                            <th class="text-end"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in clubs %}
+                        <tr>
+                            <td class="fw-semibold">{{ c['name'] }}</td>
+                            <td class="text-end text-muted">{{ c['session_count'] }}</td>
+                            <td class="text-end {{ 'text-success' if c['total_profit'] >= 0 else 'text-danger' }}">
+                                {{ c['total_profit'] | pnl }}
+                            </td>
+                            <td class="text-muted small">{{ c['notes'] or '—' }}</td>
+                            <td class="text-end">
+                                <form method="post" action="/clubs/{{ c['id'] }}/delete" class="d-inline"
+                                      onsubmit="return confirm('Delete {{ c['name'] }}? This will fail if it has sessions or transactions.')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">No clubs yet. Add your first club.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

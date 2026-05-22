@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}History — Poker Tracker{% endblock %}
+
+{% block content %}
+
+{% if not games %}
+<div class="alert alert-warning">No game types yet — <a href="/stakes">add a game type</a> first.</div>
+{% elif not blind_levels %}
+<div class="alert alert-warning">No blind levels yet — <a href="/stakes">add a blind level</a> first.</div>
+{% endif %}
+
+<!-- Add historical sessions -->
+{% if games and blind_levels %}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Add Historical Sessions</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRow()">
+            <i class="bi bi-plus-lg me-1"></i>Add Row
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <form method="post" action="/history" id="addForm">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0" id="addTable">
+                    <thead>
+                        <tr>
+                            <th style="min-width:130px">Game</th>
+                            <th style="min-width:110px">Blinds</th>
+                            <th style="min-width:80px">Hands</th>
+                            <th style="min-width:110px">Profit</th>
+                            <th style="min-width:90px">Currency</th>
+                            <th style="width:36px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessionRows">
+                        <tr>
+                            <td>
+                                <select name="game_id[]" class="form-select form-select-sm" required>
+                                    {% for g in games %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <select name="blind_level_id[]" class="form-select form-select-sm" required>
+                                    {% for bl in blind_levels %}<option value="{{ bl.id }}">{{ bl.name }}</option>{% endfor %}
+                                </select>
+                            </td>
+                            <td><input type="number" name="hands[]" class="form-control form-control-sm" min="0" step="1" placeholder="—"></td>
+                            <td><input type="number" name="profit[]" class="form-control form-control-sm profit-input" step="any" placeholder="0" required></td>
+                            <td>
+                                <select name="currency[]" class="form-select form-select-sm">
+                                    <option value="NOK">NOK</option>
+                                    <option value="USD">USD</option>
+                                </select>
+                            </td>
+                            <td><button type="button" class="btn btn-sm btn-link text-danger p-0 px-1" onclick="removeRow(this)" tabindex="-1"><i class="bi bi-x-lg"></i></button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-3 pb-3 pt-2 d-flex justify-content-end">
+                <button type="submit" class="btn btn-success btn-sm px-4">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<template id="rowTemplate">
+    <tr>
+        <td>
+            <select name="game_id[]" class="form-select form-select-sm" required>
+                {% for g in games %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+            </select>
+        </td>
+        <td>
+            <select name="blind_level_id[]" class="form-select form-select-sm" required>
+                {% for bl in blind_levels %}<option value="{{ bl.id }}">{{ bl.name }}</option>{% endfor %}
+            </select>
+        </td>
+        <td><input type="number" name="hands[]" class="form-control form-control-sm" min="0" step="1" placeholder="—"></td>
+        <td><input type="number" name="profit[]" class="form-control form-control-sm profit-input" step="any" placeholder="0" required></td>
+        <td>
+            <select name="currency[]" class="form-select form-select-sm">
+                <option value="NOK">NOK</option>
+                <option value="USD">USD</option>
+            </select>
+        </td>
+        <td><button type="button" class="btn btn-sm btn-link text-danger p-0 px-1" onclick="removeRow(this)" tabindex="-1"><i class="bi bi-x-lg"></i></button></td>
+    </tr>
+</template>
+{% endif %}
+
+<!-- Historical sessions list -->
+{% if history %}
+<div class="card">
+    <div class="card-header">Historical Sessions ({{ history | length }})</div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Game</th>
+                    <th class="text-end">Hands</th>
+                    <th class="text-end">Profit</th>
+                    <th class="text-end">Currency</th>
+                    <th class="text-end"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for h in history %}
+                <tr>
+                    <td class="text-muted small">{{ h['id'] }}</td>
+                    <td><span class="badge bg-secondary">{{ h['stake_name'] }}</span></td>
+                    <td class="text-end text-muted">{{ h['hands'] or '—' }}</td>
+                    <td class="text-end fw-semibold {{ 'text-success' if h['profit'] >= 0 else 'text-danger' }}">
+                        {{ h['profit'] | pnl }}
+                    </td>
+                    <td class="text-end">
+                        <span class="badge" style="background:rgba(255,255,255,0.08);color:#7d8590">{{ h['currency'] }}</span>
+                    </td>
+                    <td class="text-end">
+                        <form method="post" action="/history/{{ h['id'] }}/delete" class="d-inline"
+                              onsubmit="return confirm('Delete this entry?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="text-center text-muted py-5">No historical sessions yet.</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addRow() {
+    const tmpl = document.getElementById('rowTemplate').content.cloneNode(true);
+    const firstRow = document.querySelector('#sessionRows tr');
+    if (firstRow) {
+        ['game_id[]', 'blind_level_id[]', 'currency[]'].forEach(name => {
+            const src = firstRow.querySelector(`select[name="${name}"]`);
+            const dst = tmpl.querySelector(`select[name="${name}"]`);
+            if (src && dst) dst.value = src.value;
+        });
+    }
+    document.getElementById('sessionRows').appendChild(tmpl);
+    const rows = document.querySelectorAll('#sessionRows tr');
+    rows[rows.length - 1].querySelector('.profit-input').focus();
+}
+
+function removeRow(btn) {
+    const rows = document.querySelectorAll('#sessionRows tr');
+    if (rows.length > 1) btn.closest('tr').remove();
+}
+
+document.getElementById('addTable')?.addEventListener('input', e => {
+    if (e.target.classList.contains('profit-input')) {
+        const v = parseFloat(e.target.value);
+        e.target.style.color = isNaN(v) ? '' : v >= 0 ? '#22c55e' : '#ef4444';
+    }
+});
+</script>
+{% endblock %}
