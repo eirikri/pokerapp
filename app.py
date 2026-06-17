@@ -94,9 +94,17 @@ def index():
         ORDER BY date DESC
     """, params).fetchall()
 
+    monthly_pnl = db.execute(f"""
+        SELECT strftime('%Y-%m', date) as month, SUM(profit) as profit,
+               COUNT(*) as session_count, SUM(hands) as hands
+        FROM sessions s {cond}
+        GROUP BY month
+        ORDER BY month DESC
+    """, params).fetchall()
+
     _session_rows = db.execute(f"""
         SELECT s.id, s.date, c.name as club_name, g.name as game_name,
-               bl.name as blind_name, s.hands, s.profit
+               bl.name as blind_name, bl.big_blind, s.hands, s.profit
         FROM sessions s
         JOIN clubs c ON s.club_id = c.id
         JOIN games g ON s.game_id = g.id
@@ -127,6 +135,43 @@ def index():
     daily_labels = list(daily.keys())
     daily_values = list(daily.values())
 
+    # Per-month chart (cumulative within month) and game breakdown
+    _month_daily: dict = {}   # month -> {date -> profit}
+    _month_games: dict = {}   # month -> {game_key -> {...}}
+    for row in chart_rows:    # chart_rows is ASC
+        m = row["date"][:7]
+        _month_daily.setdefault(m, {})
+        _month_daily[m][row["date"]] = round(_month_daily[m].get(row["date"], 0) + row["profit"], 2)
+
+    month_chart_data: dict = {}
+    for m, days in _month_daily.items():
+        cum2, vals = 0, []
+        for d in sorted(days):
+            cum2 = round(cum2 + days[d], 2)
+            vals.append(cum2)
+        month_chart_data[m] = {"labels": sorted(days.keys()), "values": vals}
+
+    for row in _session_rows:
+        m = row["date"][:7]
+        key = f"{row['game_name']} {row['blind_name']}"
+        _month_games.setdefault(m, {})
+        if key not in _month_games[m]:
+            _month_games[m][key] = {"game": key, "profit": 0, "hands": 0, "profit_bb": 0, "big_blind": row["big_blind"]}
+        g = _month_games[m][key]
+        g["profit"] = round(g["profit"] + row["profit"], 2)
+        if row["hands"]:
+            g["hands"] += row["hands"]
+            g["profit_bb"] += row["profit"] / row["big_blind"]
+
+    for m, games in _month_games.items():
+        for g in games.values():
+            g["bb100"] = round(g["profit_bb"] / g["hands"] * 100, 2) if g["hands"] else None
+
+    month_game_breakdown = {
+        m: sorted(games.values(), key=lambda g: g["game"])
+        for m, games in _month_games.items()
+    }
+
     club_breakdown = None
     if not club_id:
         club_breakdown = db.execute("""
@@ -155,11 +200,14 @@ def index():
         selected_game_id=game_id, selected_blind_level_id=blind_level_id,
         stats=stats,
         stake_stats=stake_stats, club_breakdown=club_breakdown, daily_pnl=daily_pnl,
+        monthly_pnl=monthly_pnl,
         sessions_by_date=sessions_by_date,
         chart_labels=json.dumps(chart_labels),
         chart_values=json.dumps(chart_values),
         daily_labels=json.dumps(daily_labels),
-        daily_values=json.dumps(daily_values))
+        daily_values=json.dumps(daily_values),
+        month_chart_data=json.dumps(month_chart_data),
+        month_game_breakdown=month_game_breakdown)
 
 
 # ── Clubs ────────────────────────────────────────────────────────────────────

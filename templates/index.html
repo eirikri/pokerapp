@@ -209,11 +209,17 @@
 </div>
 {% endif %}
 
-<!-- Daily P&L -->
+<!-- Daily / Monthly P&L -->
 <div class="card">
-    <div class="card-header">P&L by Day</div>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span id="pnlTableTitle">P&L by Day</span>
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" id="btnByDay" class="btn btn-secondary active" onclick="setPnlView('day')">By Day</button>
+            <button type="button" id="btnByMonth" class="btn btn-outline-secondary" onclick="setPnlView('month')">By Month</button>
+        </div>
+    </div>
     {% if daily_pnl %}
-    <div class="table-responsive">
+    <div id="pnlByDayTable" class="table-responsive">
         <table class="table table-hover table-sm mb-0">
             <thead>
                 <tr>
@@ -248,6 +254,69 @@
             </tbody>
         </table>
     </div>
+    <div id="pnlByMonthTable" class="table-responsive" style="display:none">
+        <table class="table table-hover table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th class="text-end">Sessions</th>
+                    <th class="text-end">Hands</th>
+                    <th class="text-end">Profit</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in monthly_pnl %}
+                {% set month_id = 'month-' ~ m['month'] | replace('-', '') %}
+                <tr class="month-summary-row" data-target="{{ month_id }}" data-month="{{ m['month'] }}" style="cursor:pointer">
+                    <td>
+                        <i class="bi bi-chevron-right month-chevron small text-muted me-1" style="transition:transform 0.2s;display:inline-block"></i>
+                        <span class="text-muted">{{ m['month'] }}</span>
+                    </td>
+                    <td class="text-end text-muted">{{ m['session_count'] }}</td>
+                    <td class="text-end text-muted">{{ m['hands'] or '—' }}</td>
+                    <td class="text-end fw-semibold {{ 'text-success' if m['profit'] >= 0 else 'text-danger' }}">{{ m['profit'] | pnl }}</td>
+                </tr>
+                <tr id="{{ month_id }}" style="display:none">
+                    <td colspan="4" class="p-3" style="background:rgba(255,255,255,0.025)">
+                        <div class="row g-3 align-items-start">
+                            <div class="col-md-7">
+                                <canvas id="chart-{{ month_id }}" height="140"></canvas>
+                            </div>
+                            <div class="col-md-5">
+                                {% set breakdown = month_game_breakdown.get(m['month'], []) %}
+                                {% if breakdown %}
+                                <table class="table table-sm mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th class="small text-muted fw-normal">Game</th>
+                                            <th class="text-end small text-muted fw-normal">Hands</th>
+                                            <th class="text-end small text-muted fw-normal">P&L</th>
+                                            <th class="text-end small text-muted fw-normal" style="white-space:nowrap">BB/100</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for g in breakdown %}
+                                        {% set bb100 = g['bb100'] %}
+                                        <tr>
+                                            <td class="small text-muted">{{ g['game'] }}</td>
+                                            <td class="text-end small text-muted">{{ "{:,}".format(g['hands'] | int).replace(",", " ") if g['hands'] else '—' }}</td>
+                                            <td class="text-end small fw-semibold {{ 'text-success' if g['profit'] >= 0 else 'text-danger' }}">{{ g['profit'] | pnl }}</td>
+                                            <td class="text-end small {{ 'text-success' if bb100 and bb100 >= 0 else 'text-danger' if bb100 and bb100 < 0 else 'text-muted' }}" style="white-space:nowrap">
+                                                {% if bb100 is not none %}{{ "%.2f"|format(bb100) }}{% else %}—{% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
     <div class="card-body text-center text-muted py-5">
         No sessions yet.
@@ -263,6 +332,7 @@ const cumulativeLabels = {{ chart_labels | safe }};
 const cumulativeValues = {{ chart_values | safe }};
 const dailyLabels = {{ daily_labels | safe }};
 const dailyValues = {{ daily_values | safe }};
+const monthChartData = {{ month_chart_data | safe }};
 const gridColor = '#21262d';
 const tickColor  = '#7d8590';
 
@@ -350,6 +420,15 @@ if (pnlByGame) {
 }
 chevron && (chevron.style.transition = 'transform 0.2s');
 
+function setPnlView(mode) {
+    const isDay = mode === 'day';
+    document.getElementById('pnlByDayTable').style.display = isDay ? '' : 'none';
+    document.getElementById('pnlByMonthTable').style.display = isDay ? 'none' : '';
+    document.getElementById('pnlTableTitle').textContent = isDay ? 'P&L by Day' : 'P&L by Month';
+    document.getElementById('btnByDay').className = 'btn btn-' + (isDay ? '' : 'outline-') + 'secondary' + (isDay ? ' active' : '');
+    document.getElementById('btnByMonth').className = 'btn btn-' + (!isDay ? '' : 'outline-') + 'secondary' + (!isDay ? ' active' : '');
+}
+
 document.querySelectorAll('.day-summary-row').forEach(row => {
     row.addEventListener('click', () => {
         const icon = row.querySelector('.day-chevron');
@@ -358,6 +437,52 @@ document.querySelectorAll('.day-summary-row').forEach(row => {
         const open = details[0].style.display !== 'none';
         details.forEach(r => r.style.display = open ? 'none' : 'table-row');
         icon.style.transform = open ? '' : 'rotate(90deg)';
+    });
+});
+
+const monthCharts = {};
+document.querySelectorAll('.month-summary-row').forEach(row => {
+    row.addEventListener('click', () => {
+        const monthId = row.dataset.target;
+        const detailRow = document.getElementById(monthId);
+        const icon = row.querySelector('.month-chevron');
+        const open = detailRow.style.display !== 'none';
+        detailRow.style.display = open ? 'none' : 'table-row';
+        icon.style.transform = open ? '' : 'rotate(90deg)';
+
+        if (!open && !monthCharts[monthId]) {
+            const month = row.dataset.month;
+            const data = monthChartData[month];
+            if (!data || !data.labels.length) return;
+            const lastVal = data.values[data.values.length - 1];
+            const color = lastVal >= 0 ? '#22c55e' : '#ef4444';
+            monthCharts[monthId] = new Chart(document.getElementById('chart-' + monthId), {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.values,
+                        borderColor: color,
+                        backgroundColor: lastVal >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                        borderWidth: 2,
+                        fill: true,
+                        pointRadius: data.labels.length > 15 ? 0 : 3,
+                        pointBackgroundColor: color,
+                        tension: 0.15,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false }, tooltip: {
+                        callbacks: { label: ctx => `${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toLocaleString('nb-NO')} kr` }
+                    }},
+                    scales: {
+                        y: { grid: { color: gridColor }, ticks: { color: tickColor, callback: v => `${v >= 0 ? '+' : ''}${v.toLocaleString('nb-NO')}` } },
+                        x: { grid: { color: gridColor }, ticks: { color: tickColor } }
+                    }
+                }
+            });
+        }
     });
 });
 
