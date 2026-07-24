@@ -115,7 +115,7 @@
                         {{ h['profit'] | pnl }}
                     </td>
                     <td class="text-end">
-                        <span class="badge" style="background:rgba(255,255,255,0.08);color:#7d8590">{{ h['currency'] }}</span>
+                        <span class="badge" style="background:rgba(255,255,255,0.08);color:#64748b">{{ h['currency'] }}</span>
                     </td>
                     <td class="text-end">
                         <form method="post" action="/history/{{ h['id'] }}/delete" class="d-inline"
@@ -162,7 +162,7 @@ function removeRow(btn) {
 document.getElementById('addTable')?.addEventListener('input', e => {
     if (e.target.classList.contains('profit-input')) {
         const v = parseFloat(e.target.value);
-        e.target.style.color = isNaN(v) ? '' : v >= 0 ? '#22c55e' : '#ef4444';
+        e.target.style.color = isNaN(v) ? '' : v >= 0 ? '#10b981' : '#ef4444';
     }
 });
 </script>

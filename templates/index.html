@@ -333,13 +333,13 @@ const cumulativeValues = {{ chart_values | safe }};
 const dailyLabels = {{ daily_labels | safe }};
 const dailyValues = {{ daily_values | safe }};
 const monthChartData = {{ month_chart_data | safe }};
-const gridColor = '#21262d';
-const tickColor  = '#7d8590';
+const gridColor = '#1e2d45';
+const tickColor  = '#64748b';
 
 let pnlChart = null;
 
 function barColors(values) {
-    return values.map(v => v >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)');
+    return values.map(v => v >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)');
 }
 
 function setChartMode(mode) {
@@ -348,7 +348,7 @@ function setChartMode(mode) {
     const labels = isCumulative ? cumulativeLabels : dailyLabels;
     const values = isCumulative ? cumulativeValues : dailyValues;
     const lastVal = isCumulative ? values[values.length - 1] : 0;
-    const pos = '#22c55e', neg = '#ef4444';
+    const pos = '#10b981', neg = '#ef4444';
 
     document.getElementById('chartTitle').textContent = isCumulative ? 'Cumulative P&L' : 'Daily P&L';
     document.getElementById('btnCumulative').className = 'btn btn-' + (isCumulative ? '' : 'outline-') + 'secondary' + (isCumulative ? ' active' : '');
@@ -361,7 +361,7 @@ function setChartMode(mode) {
     if (isCumulative) {
         Object.assign(pnlChart.data.datasets[0], {
             borderColor: lastVal >= 0 ? pos : neg,
-            backgroundColor: lastVal >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+            backgroundColor: lastVal >= 0 ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
             borderWidth: 2,
             fill: true,
             pointRadius: labels.length > 40 ? 0 : 3,
@@ -390,12 +390,12 @@ if (cumulativeLabels.length) {
             labels: cumulativeLabels,
             datasets: [{
                 data: cumulativeValues,
-                borderColor: lastVal >= 0 ? '#22c55e' : '#ef4444',
-                backgroundColor: lastVal >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                borderColor: lastVal >= 0 ? '#10b981' : '#ef4444',
+                backgroundColor: lastVal >= 0 ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
                 borderWidth: 2,
                 fill: true,
                 pointRadius: cumulativeLabels.length > 40 ? 0 : 3,
-                pointBackgroundColor: lastVal >= 0 ? '#22c55e' : '#ef4444',
+                pointBackgroundColor: lastVal >= 0 ? '#10b981' : '#ef4444',
                 tension: 0.15,
             }]
         },
@@ -455,7 +455,7 @@ document.querySelectorAll('.month-summary-row').forEach(row => {
             const data = monthChartData[month];
             if (!data || !data.labels.length) return;
             const lastVal = data.values[data.values.length - 1];
-            const color = lastVal >= 0 ? '#22c55e' : '#ef4444';
+            const color = lastVal >= 0 ? '#10b981' : '#ef4444';
             monthCharts[monthId] = new Chart(document.getElementById('chart-' + monthId), {
                 type: 'line',
                 data: {
@@ -463,7 +463,7 @@ document.querySelectorAll('.month-summary-row').forEach(row => {
                     datasets: [{
                         data: data.values,
                         borderColor: color,
-                        backgroundColor: lastVal >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                        backgroundColor: lastVal >= 0 ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
                         borderWidth: 2,
                         fill: true,
                         pointRadius: data.labels.length > 15 ? 0 : 3,
